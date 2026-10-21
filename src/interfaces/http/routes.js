@@ -33,6 +33,23 @@ function parseDelay(value) {
   return Number.isNaN(parsed) ? DEFAULT_DELAY_MS : Math.max(0, Math.min(parsed, MAX_DELAY_MS));
 }
 
+function parseRoles(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = typeof raw === "string" && raw.startsWith("[") ? JSON.parse(raw) : [raw];
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    return [raw];
+  }
+}
+
+function getAuth(request) {
+  const user = request.headers["x-auth-user"] || null;
+  const email = request.headers["x-auth-email"] || null;
+  const roles = parseRoles(request.headers["x-auth-roles"]);
+  return { user, email, roles };
+}
+
 export function registerRoutes(app, { serviceName, useCases, metrics, tracing, log, checkReadiness }) {
   app.setErrorHandler((err, _request, reply) => {
     if (err instanceof EventNotFoundError) {
@@ -59,22 +76,37 @@ export function registerRoutes(app, { serviceName, useCases, metrics, tracing, l
     tracked("/api/node", (request, reply) => {
       const delayMs = parseDelay(request.query.delay_ms);
       const forceFail = request.query.fail === "1";
+      const auth = getAuth(request);
 
-      return tracing.withSpan("node.business_logic", { "demo.delay_ms": delayMs }, async () => {
+      const spanAttributes = {
+        "demo.delay_ms": delayMs,
+        ...(auth.user ? { "enduser.id": auth.user } : {}),
+        ...(auth.email ? { "enduser.email": auth.email } : {}),
+        ...(auth.roles.length > 0 ? { "enduser.role": auth.roles.join(",") } : {}),
+      };
+
+      return tracing.withSpan("node.business_logic", spanAttributes, async () => {
         await useCases.simulate(delayMs);
 
         if (forceFail) {
-          log("node_simulated_error");
+          log("node_simulated_error", { user: auth.user });
           return reply.code(500).send({
             ok: false,
             service: serviceName,
             trace_id: tracing.currentTraceId(),
             error: "Error simulado para validar observabilidad.",
+            auth,
           });
         }
 
-        log("node_ok", { delay_ms: delayMs });
-        return { ok: true, service: serviceName, trace_id: tracing.currentTraceId(), message: "pong" };
+        log("node_ok", { delay_ms: delayMs, user: auth.user, email: auth.email, roles: auth.roles });
+        return {
+          ok: true,
+          service: serviceName,
+          trace_id: tracing.currentTraceId(),
+          message: "pong",
+          auth,
+        };
       });
     })
   );
@@ -83,9 +115,14 @@ export function registerRoutes(app, { serviceName, useCases, metrics, tracing, l
     "/api/node/items",
     { schema: { body: nameBody } },
     tracked("/api/node/items", async (request, reply) => {
+      const auth = getAuth(request);
       const item = await useCases.createItem(request.body.name);
-      log("item_created", { item_id: item.id });
-      return reply.code(201).send(serializeItem(item));
+      log("item_created", { item_id: item.id, user: auth.user, roles: auth.roles });
+      const serialized = serializeItem(item);
+      if (auth.user) {
+        serialized.created_by = auth.user;
+      }
+      return reply.code(201).send(serialized);
     })
   );
 
@@ -103,9 +140,14 @@ export function registerRoutes(app, { serviceName, useCases, metrics, tracing, l
     "/api/node/events",
     { schema: { body: eventBody } },
     tracked("/api/node/events", async (request, reply) => {
+      const auth = getAuth(request);
       const event = await useCases.createEvent(request.body.name);
-      log("event_created", { event_id: event.eventId });
-      return reply.code(201).send({ ok: true, event: serializeEvent(event) });
+      log("event_created", { event_id: event.eventId, user: auth.user, roles: auth.roles });
+      return reply.code(201).send({
+        ok: true,
+        event: serializeEvent(event),
+        ...(auth.user ? { published_by: auth.user } : {}),
+      });
     })
   );
 
