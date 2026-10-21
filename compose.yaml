@@ -33,12 +33,21 @@ services:
       start_period: 10s
     labels:
       - traefik.enable=true
+      - traefik.docker.network=demo-observability-net
+      # Router 1: Rutas publicas (sin JWT, priority 100)
+      - 'traefik.http.routers.demo-test-fastify-public.rule=PathPrefix(`/api/node/public`)'
+      - traefik.http.routers.demo-test-fastify-public.entrypoints=web
+      - traefik.http.routers.demo-test-fastify-public.middlewares=demo-ratelimit@docker,demo-secure-headers@docker
+      - traefik.http.routers.demo-test-fastify-public.service=demo-test-fastify
+      - traefik.http.routers.demo-test-fastify-public.priority=100
+      # Router 2: Rutas protegidas (exigen JWT, priority 10)
       - 'traefik.http.routers.demo-test-fastify.rule=PathPrefix(`/api/node`)'
       - traefik.http.routers.demo-test-fastify.entrypoints=web
-      - traefik.http.routers.demo-test-fastify.middlewares=demo-ratelimit@docker,demo-inflight@docker,demo-secure-headers@docker
+      - traefik.http.routers.demo-test-fastify.middlewares=demo-jwt-auth@file,demo-ratelimit@docker,demo-inflight@docker,demo-secure-headers@docker
       - traefik.http.routers.demo-test-fastify.service=demo-test-fastify
+      - traefik.http.routers.demo-test-fastify.priority=10
+      # Loadbalancer
       - traefik.http.services.demo-test-fastify.loadbalancer.server.port=8084
-      - traefik.docker.network=demo-observability-net
     networks:
       - demo-net
 

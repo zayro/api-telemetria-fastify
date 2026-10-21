@@ -72,6 +72,20 @@ export function registerRoutes(app, { serviceName, useCases, metrics, tracing, l
   };
 
   app.get(
+    "/api/node/public",
+    tracked("/api/node/public", (request) => {
+      const auth = getAuth(request);
+      log("node_public_access", { authenticated: Boolean(auth.user) });
+      return {
+        ok: true,
+        service: serviceName,
+        message: "Este endpoint es publico. No requiere autenticacion JWT.",
+        auth,
+      };
+    })
+  );
+
+  app.get(
     "/api/node",
     tracked("/api/node", (request, reply) => {
       const delayMs = parseDelay(request.query.delay_ms);
