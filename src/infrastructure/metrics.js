@@ -2,13 +2,13 @@ import client from "prom-client";
 
 export function createMetrics(serviceName) {
   const requests = new client.Counter({
-    name: "demo_http_requests_total",
-    help: "Total de solicitudes HTTP del demo",
+    name: "app_http_requests_total",
+    help: "Total de solicitudes HTTP del app",
     labelNames: ["service", "route", "status"],
   });
   const duration = new client.Histogram({
-    name: "demo_http_request_duration_seconds",
-    help: "Duracion de solicitudes HTTP del demo",
+    name: "app_http_request_duration_seconds",
+    help: "Duracion de solicitudes HTTP del app",
     labelNames: ["service", "route"],
   });
 

@@ -1,6 +1,6 @@
 # Servicio de prueba Fastify
 
-Servicio HTTP del demo (Node.js 22 / Fastify 5) para probar observabilidad,
+Servicio HTTP del app (Node.js 22 / Fastify 5) para probar observabilidad,
 persistencia, cache y consumo de eventos. Se expone hacia los clientes unicamente
 a traves de Traefik (`/api/node`); dentro de Docker escucha en el puerto `8084`.
 
@@ -26,7 +26,7 @@ inyeccion, sin conocer Fastify ni los drivers. `app.js` conecta todo.
 
 - `GET /api/node?delay_ms=100&fail=0`: responde `pong`; `delay_ms` acepta 0-2000
   y `fail=1` genera un error 500 simulado.
-- `POST /api/node/items` con `{"name":"demo"}` y `GET /api/node/items`: ejemplo
+- `POST /api/node/items` con `{"name":"app"}` y `GET /api/node/items`: ejemplo
   con PostgreSQL y cache Redis (cache-aside, TTL 30 s).
 - CRUD de eventos sobre la tabla `node_events`:
   - `POST /api/node/events`: `201` (no publica en RabbitMQ).

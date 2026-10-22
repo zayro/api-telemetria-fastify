@@ -93,7 +93,7 @@ export function registerRoutes(app, { serviceName, useCases, metrics, tracing, l
       const auth = getAuth(request);
 
       const spanAttributes = {
-        "demo.delay_ms": delayMs,
+        "app.delay_ms": delayMs,
         ...(auth.user ? { "enduser.id": auth.user } : {}),
         ...(auth.email ? { "enduser.email": auth.email } : {}),
         ...(auth.roles.length > 0 ? { "enduser.role": auth.roles.join(",") } : {}),

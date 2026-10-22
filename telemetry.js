@@ -10,7 +10,7 @@ const endpoint = (process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://otel-collec
 const sdk = new NodeSDK({
   resource: resourceFromAttributes({
     "service.name": process.env.SERVICE_NAME || "test-fastify-service",
-    "service.namespace": "demo-etapa1",
+    "service.namespace": "app-etapa1",
     "deployment.environment.name": process.env.DEPLOYMENT_ENVIRONMENT || "development",
   }),
   traceExporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),

@@ -7,7 +7,7 @@ import { EventNotFoundError } from "../src/domain/errors.js";
 function fakes() {
   const events = new Map();
   const state = { cache: null, cacheSet: null, invalidated: false, itemsRequested: 0, delay: null };
-  const item = { id: 1, name: "demo", createdAt: new Date("2026-01-01T00:00:00Z") };
+  const item = { id: 1, name: "app", createdAt: new Date("2026-01-01T00:00:00Z") };
 
   const itemsRepository = {
     create: async () => item,
@@ -77,7 +77,7 @@ test("listItems usa el cache sin consultar la base", async () => {
 test("createItem invalida el cache", async () => {
   const { useCases, state, item } = fakes();
 
-  assert.deepEqual(await useCases.createItem("demo"), item);
+  assert.deepEqual(await useCases.createItem("app"), item);
   assert.equal(state.invalidated, true);
 });
 
@@ -90,10 +90,10 @@ test("simulate delega la espera", async () => {
 
 test("CRUD de eventos", async () => {
   const { useCases } = fakes();
-  const created = await useCases.createEvent("demo");
+  const created = await useCases.createEvent("app");
   assert.equal(created.eventId, "11111111-1111-4111-8111-111111111111");
 
-  assert.equal((await useCases.getEvent(created.eventId)).name, "demo");
+  assert.equal((await useCases.getEvent(created.eventId)).name, "app");
   assert.equal((await useCases.listEvents()).length, 1);
   assert.equal((await useCases.updateEvent(created.eventId, "nuevo")).name, "nuevo");
 
@@ -120,9 +120,9 @@ test("recordConsumedEvent es idempotente", async () => {
 });
 
 test("parseEventMessage acepta un mensaje valido", () => {
-  const raw = JSON.stringify({ event_id: "22222222-2222-4222-8222-222222222222", name: "demo" });
+  const raw = JSON.stringify({ event_id: "22222222-2222-4222-8222-222222222222", name: "app" });
 
-  assert.deepEqual(parseEventMessage(raw), { eventId: "22222222-2222-4222-8222-222222222222", name: "demo" });
+  assert.deepEqual(parseEventMessage(raw), { eventId: "22222222-2222-4222-8222-222222222222", name: "app" });
 });
 
 test("parseEventMessage rechaza mensajes invalidos", () => {
@@ -130,7 +130,7 @@ test("parseEventMessage rechaza mensajes invalidos", () => {
   const invalid = [
     "no es json",
     "null",
-    JSON.stringify({ event_id: "no-uuid", name: "demo" }),
+    JSON.stringify({ event_id: "no-uuid", name: "app" }),
     JSON.stringify({ event_id: uuid, name: "" }),
     JSON.stringify({ event_id: uuid, name: "x".repeat(101) }),
     JSON.stringify({ event_id: uuid }),

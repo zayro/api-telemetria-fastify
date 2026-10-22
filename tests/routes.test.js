@@ -11,7 +11,7 @@ function buildApp({ checkReadiness = async () => {} } = {}) {
   const recorded = [];
   const useCases = createUseCases({
     itemsRepository: {
-      create: async () => ({ id: 1, name: "demo", createdAt: new Date("2026-01-01T00:00:00Z") }),
+      create: async () => ({ id: 1, name: "app", createdAt: new Date("2026-01-01T00:00:00Z") }),
       listRecent: async () => [],
     },
     itemsCache: { get: async () => null, set: async () => {}, invalidate: async () => {} },
@@ -49,12 +49,12 @@ function buildApp({ checkReadiness = async () => {} } = {}) {
 
 test("POST /api/node/events crea y responde 201 con el formato publico", async () => {
   const { app } = buildApp();
-  const res = await app.inject({ method: "POST", url: "/api/node/events", payload: { name: "demo" } });
+  const res = await app.inject({ method: "POST", url: "/api/node/events", payload: { name: "app" } });
 
   assert.equal(res.statusCode, 201);
   assert.deepEqual(res.json().event, {
     event_id: ID,
-    name: "demo",
+    name: "app",
     received_at: "2026-01-01T00:00:00.000Z",
     updated_at: null,
   });
@@ -71,7 +71,7 @@ test("un evento inexistente responde 404 y se registra en metricas", async () =>
 
 test("PUT y DELETE del evento", async () => {
   const { app } = buildApp();
-  await app.inject({ method: "POST", url: "/api/node/events", payload: { name: "demo" } });
+  await app.inject({ method: "POST", url: "/api/node/events", payload: { name: "app" } });
 
   const put = await app.inject({ method: "PUT", url: `/api/node/events/${ID}`, payload: { name: "nuevo" } });
   assert.equal(put.statusCode, 200);
@@ -95,10 +95,10 @@ test("valida UUID y cuerpo con 400", async () => {
 
 test("POST /api/node/items responde 201 con created_at", async () => {
   const { app } = buildApp();
-  const res = await app.inject({ method: "POST", url: "/api/node/items", payload: { name: "demo" } });
+  const res = await app.inject({ method: "POST", url: "/api/node/items", payload: { name: "app" } });
 
   assert.equal(res.statusCode, 201);
-  assert.deepEqual(res.json(), { id: 1, name: "demo", created_at: "2026-01-01T00:00:00.000Z" });
+  assert.deepEqual(res.json(), { id: 1, name: "app", created_at: "2026-01-01T00:00:00.000Z" });
 });
 
 test("GET /api/node responde pong y fail=1 responde 500", async () => {
