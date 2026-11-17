@@ -1,7 +1,10 @@
 import { trace, SpanStatusCode } from "@opentelemetry/api";
 import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 
-export function createTracing(serviceName) {
+import type { Tracing, StructuredLogger } from "./contracts.js";
+import { asError, errorMessage } from "../domain/error-utils.js";
+
+export function createTracing(serviceName: string): Tracing {
   const tracer = trace.getTracer(serviceName);
 
   return {
@@ -18,8 +21,11 @@ export function createTracing(serviceName) {
           span.setAttributes(attributes);
           return await fn();
         } catch (err) {
-          span.recordException(err);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+          span.recordException(asError(err));
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: errorMessage(err),
+          });
           throw err;
         } finally {
           span.end();
@@ -30,11 +36,11 @@ export function createTracing(serviceName) {
 }
 
 // Log JSON por consola y por OTLP, correlacionado con la traza activa.
-export function createStructuredLogger(serviceName) {
+export function createStructuredLogger(serviceName: string): StructuredLogger {
   const otelLogger = logs.getLogger(serviceName);
 
   return function structuredLog(event, fields = {}, level = "INFO") {
-    const payload = { event, ...fields };
+    const payload: Record<string, unknown> = { event, ...fields };
     const ctx = trace.getActiveSpan()?.spanContext();
     if (ctx) {
       payload.trace_id = ctx.traceId;
@@ -42,10 +48,14 @@ export function createStructuredLogger(serviceName) {
     }
     const body = JSON.stringify(payload);
     (level === "ERROR" ? console.error : console.log)(body);
-    otelLogger.emit({ severityNumber: SeverityNumber[level], severityText: level, body });
+    otelLogger.emit({
+      severityNumber: SeverityNumber[level],
+      severityText: level,
+      body,
+    });
   };
 }
 
-export function logError(event, err) {
-  console.error(JSON.stringify({ event, error: err.message }));
+export function logError(event: string, err: unknown) {
+  console.error(JSON.stringify({ event, error: errorMessage(err) }));
 }

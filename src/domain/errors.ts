@@ -1,5 +1,7 @@
 export class EventNotFoundError extends Error {
-  constructor(eventId) {
+  readonly eventId: string;
+
+  constructor(eventId: string) {
     super(`Evento ${eventId} no encontrado.`);
     this.name = "EventNotFoundError";
     this.eventId = eventId;

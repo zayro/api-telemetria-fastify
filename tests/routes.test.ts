@@ -3,28 +3,44 @@ import assert from "node:assert/strict";
 import fastify from "fastify";
 import { registerRoutes } from "../src/interfaces/http/routes.js";
 import { createUseCases } from "../src/application/use-cases.js";
+import type { StoredEvent } from "../src/domain/models.js";
 
 const ID = "11111111-1111-4111-8111-111111111111";
 
 function buildApp({ checkReadiness = async () => {} } = {}) {
-  const events = new Map();
-  const recorded = [];
+  const events = new Map<string, StoredEvent>();
+  const recorded: [string, number][] = [];
   const useCases = createUseCases({
     itemsRepository: {
-      create: async () => ({ id: 1, name: "app", createdAt: new Date("2026-01-01T00:00:00Z") }),
+      create: async () => ({
+        id: 1,
+        name: "app",
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      }),
       listRecent: async () => [],
     },
-    itemsCache: { get: async () => null, set: async () => {}, invalidate: async () => {} },
+    itemsCache: {
+      get: async () => null,
+      set: async () => {},
+      invalidate: async () => {},
+    },
     eventsRepository: {
       create: async (event) => {
-        const stored = { ...event, receivedAt: new Date("2026-01-01T00:00:00Z"), updatedAt: null };
+        const stored = {
+          ...event,
+          receivedAt: new Date("2026-01-01T00:00:00Z"),
+          updatedAt: null,
+        };
         events.set(event.eventId, stored);
         return stored;
       },
       createIfAbsent: async () => {},
       get: async (id) => events.get(id) ?? null,
       listRecent: async () => [...events.values()],
-      update: async (id, name) => (events.has(id) ? { ...events.get(id), name } : null),
+      update: async (id, name) => {
+        const event = events.get(id);
+        return event ? { ...event, name } : null;
+      },
       delete: async (id) => events.delete(id),
     },
     generateId: () => ID,
@@ -40,7 +56,10 @@ function buildApp({ checkReadiness = async () => {} } = {}) {
       render: async () => "# metrics",
       track: (route) => (status) => recorded.push([route, status]),
     },
-    tracing: { currentTraceId: () => "trace", withSpan: (_name, _attrs, fn) => fn() },
+    tracing: {
+      currentTraceId: () => "trace",
+      withSpan: (_name, _attrs, fn) => fn(),
+    },
     log: () => {},
     checkReadiness,
   });
@@ -49,7 +68,11 @@ function buildApp({ checkReadiness = async () => {} } = {}) {
 
 test("POST /api/node/events crea y responde 201 con el formato publico", async () => {
   const { app } = buildApp();
-  const res = await app.inject({ method: "POST", url: "/api/node/events", payload: { name: "app" } });
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/node/events",
+    payload: { name: "app" },
+  });
 
   assert.equal(res.statusCode, 201);
   assert.deepEqual(res.json().event, {
@@ -62,7 +85,10 @@ test("POST /api/node/events crea y responde 201 con el formato publico", async (
 
 test("un evento inexistente responde 404 y se registra en metricas", async () => {
   const { app, recorded } = buildApp();
-  const res = await app.inject({ method: "GET", url: `/api/node/events/${ID}` });
+  const res = await app.inject({
+    method: "GET",
+    url: `/api/node/events/${ID}`,
+  });
 
   assert.equal(res.statusCode, 404);
   assert.equal(res.json().ok, false);
@@ -71,34 +97,66 @@ test("un evento inexistente responde 404 y se registra en metricas", async () =>
 
 test("PUT y DELETE del evento", async () => {
   const { app } = buildApp();
-  await app.inject({ method: "POST", url: "/api/node/events", payload: { name: "app" } });
+  await app.inject({
+    method: "POST",
+    url: "/api/node/events",
+    payload: { name: "app" },
+  });
 
-  const put = await app.inject({ method: "PUT", url: `/api/node/events/${ID}`, payload: { name: "nuevo" } });
+  const put = await app.inject({
+    method: "PUT",
+    url: `/api/node/events/${ID}`,
+    payload: { name: "nuevo" },
+  });
   assert.equal(put.statusCode, 200);
   assert.equal(put.json().event.name, "nuevo");
 
-  const del = await app.inject({ method: "DELETE", url: `/api/node/events/${ID}` });
+  const del = await app.inject({
+    method: "DELETE",
+    url: `/api/node/events/${ID}`,
+  });
   assert.equal(del.statusCode, 204);
-  const again = await app.inject({ method: "DELETE", url: `/api/node/events/${ID}` });
+  const again = await app.inject({
+    method: "DELETE",
+    url: `/api/node/events/${ID}`,
+  });
   assert.equal(again.statusCode, 404);
 });
 
 test("valida UUID y cuerpo con 400", async () => {
   const { app } = buildApp();
 
-  assert.equal((await app.inject({ method: "GET", url: "/api/node/events/no-uuid" })).statusCode, 400);
   assert.equal(
-    (await app.inject({ method: "POST", url: "/api/node/events", payload: { name: "" } })).statusCode,
-    400
+    (await app.inject({ method: "GET", url: "/api/node/events/no-uuid" }))
+      .statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await app.inject({
+        method: "POST",
+        url: "/api/node/events",
+        payload: { name: "" },
+      })
+    ).statusCode,
+    400,
   );
 });
 
 test("POST /api/node/items responde 201 con created_at", async () => {
   const { app } = buildApp();
-  const res = await app.inject({ method: "POST", url: "/api/node/items", payload: { name: "app" } });
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/node/items",
+    payload: { name: "app" },
+  });
 
   assert.equal(res.statusCode, 201);
-  assert.deepEqual(res.json(), { id: 1, name: "app", created_at: "2026-01-01T00:00:00.000Z" });
+  assert.deepEqual(res.json(), {
+    id: 1,
+    name: "app",
+    created_at: "2026-01-01T00:00:00.000Z",
+  });
 });
 
 test("GET /api/node responde pong y fail=1 responde 500", async () => {
@@ -107,14 +165,20 @@ test("GET /api/node responde pong y fail=1 responde 500", async () => {
   const ok = await app.inject({ method: "GET", url: "/api/node?delay_ms=0" });
   assert.equal(ok.json().message, "pong");
 
-  const fail = await app.inject({ method: "GET", url: "/api/node?delay_ms=0&fail=1" });
+  const fail = await app.inject({
+    method: "GET",
+    url: "/api/node?delay_ms=0&fail=1",
+  });
   assert.equal(fail.statusCode, 500);
   assert.deepEqual(recorded.at(-1), ["/api/node", 500]);
 });
 
 test("/health/ready responde 503 si una dependencia falla", async () => {
   const healthy = buildApp();
-  assert.equal((await healthy.app.inject({ url: "/health/ready" })).statusCode, 200);
+  assert.equal(
+    (await healthy.app.inject({ url: "/health/ready" })).statusCode,
+    200,
+  );
 
   const broken = buildApp({
     checkReadiness: async () => {

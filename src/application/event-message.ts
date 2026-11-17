@@ -1,11 +1,17 @@
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import type { EventInput } from "../domain/models.js";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME_MAX_LENGTH = 100;
 
 // Valida el cuerpo de un mensaje publicado por otros servicios; lanza Error si es invalido.
-export function parseEventMessage(raw) {
-  const event = JSON.parse(raw);
+export function parseEventMessage(raw: string): EventInput {
+  const event: unknown = JSON.parse(raw);
   if (
     !event ||
+    typeof event !== "object" ||
+    !("event_id" in event) ||
+    !("name" in event) ||
     typeof event.event_id !== "string" ||
     !UUID_PATTERN.test(event.event_id) ||
     typeof event.name !== "string" ||

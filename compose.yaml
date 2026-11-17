@@ -12,8 +12,10 @@ services:
       DEPLOYMENT_ENVIRONMENT: development
       DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-app}
       REDIS_URL: redis://redis:6379/0
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672/
-      RABBITMQ_QUEUE: test.events
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-test.events}
+      KAFKA_DLQ_TOPIC: ${KAFKA_DLQ_TOPIC:-test.events.dlq}
+      KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-test-fastify-service}
     expose:
       - "8084"
     depends_on:
@@ -23,8 +25,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
+      kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8084/health/live"]
       interval: 10s
@@ -35,13 +39,13 @@ services:
       - traefik.enable=true
       - traefik.docker.network=app-observability-net
       # Router 1: Rutas publicas (sin JWT, priority 100)
-      - 'traefik.http.routers.app-test-fastify-public.rule=PathPrefix(`/api/node/public`)'
+      - "traefik.http.routers.app-test-fastify-public.rule=PathPrefix(`/api/node/public`)"
       - traefik.http.routers.app-test-fastify-public.entrypoints=web
       - traefik.http.routers.app-test-fastify-public.middlewares=app-ratelimit@docker,app-secure-headers@docker
       - traefik.http.routers.app-test-fastify-public.service=app-test-fastify
       - traefik.http.routers.app-test-fastify-public.priority=100
       # Router 2: Rutas protegidas (exigen JWT, priority 10)
-      - 'traefik.http.routers.app-test-fastify.rule=PathPrefix(`/api/node`)'
+      - "traefik.http.routers.app-test-fastify.rule=PathPrefix(`/api/node`)"
       - traefik.http.routers.app-test-fastify.entrypoints=web
       - traefik.http.routers.app-test-fastify.middlewares=app-jwt-auth@file,app-ratelimit@docker,app-inflight@docker,app-secure-headers@docker
       - traefik.http.routers.app-test-fastify.service=app-test-fastify

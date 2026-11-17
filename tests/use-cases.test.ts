@@ -3,20 +3,42 @@ import assert from "node:assert/strict";
 import { createUseCases } from "../src/application/use-cases.js";
 import { parseEventMessage } from "../src/application/event-message.js";
 import { EventNotFoundError } from "../src/domain/errors.js";
+import type { Item, StoredEvent } from "../src/domain/models.js";
+import type {
+  ItemsRepository,
+  ItemsCache,
+  EventsRepository,
+} from "../src/application/ports.js";
 
 function fakes() {
-  const events = new Map();
-  const state = { cache: null, cacheSet: null, invalidated: false, itemsRequested: 0, delay: null };
-  const item = { id: 1, name: "app", createdAt: new Date("2026-01-01T00:00:00Z") };
+  const events = new Map<string, StoredEvent>();
+  const state: {
+    cache: Item[] | null;
+    cacheSet: { items: Item[]; ttl: number } | null;
+    invalidated: boolean;
+    itemsRequested: number;
+    delay: number | null;
+  } = {
+    cache: null,
+    cacheSet: null,
+    invalidated: false,
+    itemsRequested: 0,
+    delay: null,
+  };
+  const item = {
+    id: 1,
+    name: "app",
+    createdAt: new Date("2026-01-01T00:00:00Z"),
+  };
 
-  const itemsRepository = {
+  const itemsRepository: ItemsRepository = {
     create: async () => item,
     listRecent: async () => {
       state.itemsRequested += 1;
       return [item];
     },
   };
-  const itemsCache = {
+  const itemsCache: ItemsCache = {
     get: async () => state.cache,
     set: async (items, ttl) => {
       state.cacheSet = { items, ttl };
@@ -25,21 +47,28 @@ function fakes() {
       state.invalidated = true;
     },
   };
-  const eventsRepository = {
+  const eventsRepository: EventsRepository = {
     create: async (event) => {
       const stored = { ...event, receivedAt: new Date(), updatedAt: null };
       events.set(event.eventId, stored);
       return stored;
     },
     createIfAbsent: async (event) => {
-      if (!events.has(event.eventId)) events.set(event.eventId, { ...event });
+      if (!events.has(event.eventId))
+        events.set(event.eventId, {
+          ...event,
+          receivedAt: new Date(),
+          updatedAt: null,
+        });
     },
     get: async (id) => events.get(id) ?? null,
     listRecent: async () => [...events.values()],
     update: async (id, name) => {
-      if (!events.has(id)) return null;
-      events.set(id, { ...events.get(id), name });
-      return events.get(id);
+      const existing = events.get(id);
+      if (!existing) return null;
+      const updated = { ...existing, name };
+      events.set(id, updated);
+      return updated;
     },
     delete: async (id) => events.delete(id),
   };
@@ -95,7 +124,10 @@ test("CRUD de eventos", async () => {
 
   assert.equal((await useCases.getEvent(created.eventId)).name, "app");
   assert.equal((await useCases.listEvents()).length, 1);
-  assert.equal((await useCases.updateEvent(created.eventId, "nuevo")).name, "nuevo");
+  assert.equal(
+    (await useCases.updateEvent(created.eventId, "nuevo")).name,
+    "nuevo",
+  );
 
   await useCases.deleteEvent(created.eventId);
   await assert.rejects(useCases.getEvent(created.eventId), EventNotFoundError);
@@ -116,13 +148,19 @@ test("recordConsumedEvent es idempotente", async () => {
   await useCases.recordConsumedEvent({ ...event, name: "b" });
 
   assert.equal(events.size, 1);
-  assert.equal(events.get(event.eventId).name, "a");
+  assert.equal(events.get(event.eventId)?.name, "a");
 });
 
 test("parseEventMessage acepta un mensaje valido", () => {
-  const raw = JSON.stringify({ event_id: "22222222-2222-4222-8222-222222222222", name: "app" });
+  const raw = JSON.stringify({
+    event_id: "22222222-2222-4222-8222-222222222222",
+    name: "app",
+  });
 
-  assert.deepEqual(parseEventMessage(raw), { eventId: "22222222-2222-4222-8222-222222222222", name: "app" });
+  assert.deepEqual(parseEventMessage(raw), {
+    eventId: "22222222-2222-4222-8222-222222222222",
+    name: "app",
+  });
 });
 
 test("parseEventMessage rechaza mensajes invalidos", () => {
